@@ -1,6 +1,7 @@
 跑了EC50-Scaffold
 
-<img width="1007" height="845" alt="image" src="https://github.com/user-attachments/assets/e9269c55-ec2d-4e8c-82b1-2d89b7a49927" />
+<img width="993" height="911" alt="image" src="https://github.com/user-attachments/assets/e948cbaa-002a-4eed-8952-ac5b1e26cf62" />
+
 
 [🎉 FINAL RESULT] Best Test performance based on Valid set:
 {'auc': [34, np.float64(0.7164741024720755), np.float64(0.6690684309504368)], 'accuracy': [41, 0.759873628616333, 0.7149624824523926]}
