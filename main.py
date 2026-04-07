@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
-
+from models.tta import eval_with_tent
 import torch
 from torch.nn.functional import cross_entropy
 from torch.optim import AdamW
@@ -238,6 +238,7 @@ if __name__ == '__main__':
         # ==========================================
         # 6. 评估与保存
         # ==========================================
+        print("\n--- 标准评估 (Standard Evaluation) ---")
         val_perf = eval_one_epoch(main_model, valid_loader, device)
         test_perf = eval_one_epoch(main_model, test_loader, device)
         
@@ -250,6 +251,19 @@ if __name__ == '__main__':
         print(f'[INFO] Valid: {val_perf}')
         print(f'[INFO] Test : {test_perf}')
 
+        print("\n--- TTA 评估 (TENT Evaluation) ---")
+        # 传入原来的 evaluate 函数
+        from models.utils import evaluate 
+        test_perf_tta = eval_with_tent(
+            main_model, 
+            test_loader, 
+            device, 
+            tta_steps=1, 
+            tta_lr=1e-3, 
+            evaluate_fn=evaluate
+        )
+
+        print(f'[INFO] TENT Test : {test_perf_tta}')
         if max_valid_auc is None or val_perf['auc'] > max_valid_auc:
             torch.save({
                 'main': main_model.state_dict(),
