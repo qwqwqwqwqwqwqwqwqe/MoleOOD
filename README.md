@@ -11,3 +11,6 @@
 
 加了tent的结果
 <img width="1286" height="849" alt="image" src="https://github.com/user-attachments/assets/85cc9007-ddc3-4f92-bdf5-1cf867d9c3d9" />
+
+加了基于聚类shot的结果
+<img width="1244" height="867" alt="image" src="https://github.com/user-attachments/assets/9d1c77f2-5875-4d00-be98-cc46fba120de" />
