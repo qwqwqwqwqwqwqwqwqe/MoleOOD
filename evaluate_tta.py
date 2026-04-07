@@ -112,9 +112,26 @@ if __name__ == '__main__':
     print("="*50)
 
     # --- (可选) 如果你想在这里直接测试 TTA ---
-    from models.tta import eval_with_tent
-    print("\n[INFO] Running Test-Time Adaptation (TENT) evaluation...")
-    test_perf_tta = eval_with_tent(main_model, test_loader, device, evaluate_fn=evaluate)
-    print("\n--- TTA RESULT ---")
-    print(f"TENT AUC: {test_perf_tta['auc']:.4f}")
-    print(f"TENT Accuracy: {test_perf_tta['accuracy']:.4f}")
+    # from models.tta import eval_with_tent
+    # print("\n[INFO] Running Test-Time Adaptation (TENT) evaluation...")
+    # test_perf_tta = eval_with_tent(main_model, test_loader, device, evaluate_fn=evaluate)
+    # print("\n--- TTA RESULT ---")
+    # print(f"TENT AUC: {test_perf_tta['auc']:.4f}")
+    # print(f"TENT Accuracy: {test_perf_tta['accuracy']:.4f}")
+
+    from models.tta import eval_with_shot
+    print("\n--- SHOT (伪标签自训练) 评估 ---")
+
+    # 实验 A: Continual SHOT (不重置，隐式滑动平均)
+    test_perf_shot_cont = eval_with_shot(
+        main_model, test_loader, device, 
+        tta_steps=1, tta_lr=1e-4, evaluate_fn=evaluate, reset_model=False
+    )
+    print(f'[INFO] Continual SHOT Test: {test_perf_shot_cont}')
+
+    # 实验 B: Episodic SHOT (每 Batch 重置，防止遗忘)这不行才0.62
+    test_perf_shot_epis = eval_with_shot(
+        main_model, test_loader, device, 
+        tta_steps=1, tta_lr=5e-5, evaluate_fn=evaluate, reset_model=False
+    )
+    print(f'[INFO] Episodic SHOT Test : {test_perf_shot_epis}')

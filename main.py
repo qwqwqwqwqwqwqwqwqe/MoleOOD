@@ -11,7 +11,7 @@ from torch.nn.functional import cross_entropy
 from torch.optim import AdamW
 from torch_geometric.loader import DataLoader  # 【关键修改】使用 PyG 的 DataLoader
 from torch_geometric.seed import seed_everything
-
+from models.tta import eval_with_shot
 # 导入我们新写的纯净版 Dataset
 from models.dataset import LBAPDatasetWithSub 
 
