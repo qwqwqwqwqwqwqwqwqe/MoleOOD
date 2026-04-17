@@ -119,19 +119,62 @@ if __name__ == '__main__':
     # print(f"TENT AUC: {test_perf_tta['auc']:.4f}")
     # print(f"TENT Accuracy: {test_perf_tta['accuracy']:.4f}")
 
-    from models.tta import eval_with_shot
-    print("\n--- SHOT (伪标签自训练) 评估 ---")
+    # from models.tta import eval_with_shot
+    # print("\n--- SHOT (伪标签自训练) 评估 ---")
 
-    # 实验 A: Continual SHOT (不重置，隐式滑动平均)
-    test_perf_shot_cont = eval_with_shot(
-        main_model, test_loader, device, 
-        tta_steps=1, tta_lr=1e-4, evaluate_fn=evaluate, reset_model=False
-    )
-    print(f'[INFO] Continual SHOT Test: {test_perf_shot_cont}')
+    # # 实验 A: Continual SHOT (不重置，隐式滑动平均)
+    # test_perf_shot_cont = eval_with_shot(
+    #     main_model, test_loader, device, 
+    #     tta_steps=1, tta_lr=1e-4, evaluate_fn=evaluate, reset_model=False
+    # )
+    # print(f'[INFO] Continual SHOT Test: {test_perf_shot_cont}')
 
-    # 实验 B: Episodic SHOT (每 Batch 重置，防止遗忘)这不行才0.62
-    test_perf_shot_epis = eval_with_shot(
-        main_model, test_loader, device, 
-        tta_steps=1, tta_lr=5e-5, evaluate_fn=evaluate, reset_model=False
+    # # 实验 B: Episodic SHOT (每 Batch 重置，防止遗忘)这不行才0.62
+    # test_perf_shot_epis = eval_with_shot(
+    #     main_model, test_loader, device, 
+    #     tta_steps=1, tta_lr=5e-5, evaluate_fn=evaluate, reset_model=False
+    # )
+    # print(f'[INFO] Episodic SHOT Test : {test_perf_shot_epis}')
+
+    from models.tta import eval_with_cotta_official,eval_with_masked_cotta
+    from models.utils import evaluate
+
+    print("\n" + "="*50)
+    print("🚀  TTA: CoTTA (Continual Test-Time Adaptation)")
+    print("="*50)
+
+    # 注意：你需要在这里实例化一个 valid_loader 传进去
+    valid_set = LBAPDatasetWithSub(args.test_path, split='ood_val')
+    valid_loader = DataLoader(valid_set, batch_size=args.batch_size, shuffle=False)
+
+    # train_set = LBAPDatasetWithSub(args.test_path, split='train')
+    # train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False)
+
+    test_perf_cotta = eval_with_cotta_official(
+        model=main_model, 
+        test_loader=test_loader, 
+        source_loader=valid_loader,  # <--- 验证集，用来摸底测算 p_th
+        device=device, 
+        tta_lr=1e-3,                 # 作者在 CV 常用 1e-3
+        alpha_ema=0.99,
+        restore_prob=0.01,           # 公式 7 里的 p
+        aug_steps=32,                # 论文中的 32 augmentations
+        delta=0.05,                  # 容差 delta
+        evaluate_fn=evaluate
     )
-    print(f'[INFO] Episodic SHOT Test : {test_perf_shot_epis}')
+
+    # test_perf_cotta = eval_with_masked_cotta(
+    #     model=main_model, 
+    #     test_loader=test_loader, 
+        
+    #     device=device, 
+    #     tta_lr=1e-4,                 # 作者在 CV 常用 1e-3
+    #     alpha_ema=0.99,
+    #     restore_prob=0.01,           # 公式 7 里的 p
+    #     aug_steps=32,   
+    #     p_th = 0.8,             # 论文中的 32 augmentations
+                      
+    #     evaluate_fn=evaluate
+    # )
+
+    print(f'\n[🎉 CoTTA RESULT] AUC: {test_perf_cotta["auc"]:.4f}, Accuracy: {test_perf_cotta["accuracy"]:.4f}')

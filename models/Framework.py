@@ -60,9 +60,9 @@ class Framework(torch.nn.Module):
 
         self.predictor = MLP([sub_dim, sub_dim, num_class], dropout=dropout, norm=None)
 
-    def forward(self, data):
+    def forward(self, data, aug_type=None, aug_ratio=0.1):
         # --- 1. 处理主图 ---
-        main_feat = self.base_model(data.x, data.edge_index, data.edge_attr, data.batch) # [num_total_nodes, base_dim]
+        main_feat = self.base_model(data.x, data.edge_index, data.edge_attr, data.batch, aug_type, aug_ratio) # [num_total_nodes, base_dim]
        
 
         # --- 2. 处理子结构 ---
@@ -76,11 +76,10 @@ class Framework(torch.nn.Module):
         sub_batch = sub_batch.to(data.x.device)
         
         subs_feat = self.sub_model(
-            sub_batch.x, 
-            sub_batch.edge_index, 
-            sub_batch.edge_attr, # <-- 必须是 sub_batch.edge_attr
-            sub_batch.batch        # <-- 必须是 sub_batch.batch
+            sub_batch.x, sub_batch.edge_index, sub_batch.edge_attr, sub_batch.batch, 
+            aug_type, aug_ratio
         )
+        
         
         
         # --- 3. 注意力聚合 ---
