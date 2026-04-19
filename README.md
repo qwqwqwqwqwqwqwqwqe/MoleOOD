@@ -14,3 +14,65 @@
 
 加了基于聚类shot的结果
 <img width="1244" height="867" alt="image" src="https://github.com/user-attachments/assets/9d1c77f2-5875-4d00-be98-cc46fba120de" />
+
+## 加了drugtta的结果
+## 元学习微调：
+!python main.py \
+  --train_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --val_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --test_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --batch_size 128 \
+  --epoch_ast 0 \
+  --epoch_main 20 \
+  --lr 1e-4 \
+  --num_domain 20 \
+  --device 0 \
+  --seed 42
+  
+[🎉 FINAL RESULT] Best Test performance based on Valid set:
+{'auc': [12, np.float64(0.7116385955844049), np.float64(0.6510927022245316)], 'accuracy': [18, 0.730252742767334, 0.6936439275741577]
+
+## 测试时
+[INFO] Loading test data from: data/ec50/lbap_core_ec50_scaffold_brics.json
+[Dataset] 正在尝试加载大型 JSON 文件: data/ec50/lbap_core_ec50_scaffold_brics.json
+[Dataset] 成功加载 ood_test 集，共 2533 个分子。
+
+[TTA] 🚀 启动 Meta-Auxiliary TTA (steps=1, lr=0.005, mask_rate=0.15)...
+Meta-Aux TTA Testing: 100% 20/20 [00:12<00:00,  1.63it/s]
+
+
+Model: log/lbap_core_ec50_scaffold_brics/PyG_GIN/best_model.pth
+
+Test Dataset: data/ec50/lbap_core_ec50_scaffold_brics.json
+
+TTA LR: 0.005 | TTA Steps: 1 | Mask Rate: 0.15
+--------------------------------------------------
+🔥 AUC:      0.6479
+🎯 Accuracy: 0.7015
+
+TTA LR: 0.01 | TTA Steps: 1 | Mask Rate: 0.4
+--------------------------------------------------
+🔥 AUC:      0.6550
+🎯 Accuracy: 0.7055
+
+TTA LR: 0.01 | TTA Steps: 3 | Mask Rate: 0.4
+--------------------------------------------------
+🔥 AUC:      0.6612
+
+TTA LR: 0.005 | TTA Steps: 1 | Mask Rate: 0.3
+--------------------------------------------------
+🔥 AUC:      0.6532
+🎯 Accuracy: 0.7031
+
+TTA LR: 0.0001 | TTA Steps: 1 | Mask Rate: 0.3
+--------------------------------------------------
+🔥 AUC:      0.6511
+🎯 Accuracy: 0.7000
+
+TTA LR: 0.005 | TTA Steps: 1 | Mask Rate: 0.5
+--------------------------------------------------
+🔥 AUC:      0.6529
+🎯 Accuracy: 0.7004
+
+
+
