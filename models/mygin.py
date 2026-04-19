@@ -193,7 +193,7 @@ class MyGIN(nn.Module):
         # 3. 图池化层 (Readout) 设置
         self.readout_type = readout
 
-    def forward(self, x, edge_index, edge_attr, batch, aug_type=None, aug_ratio=0.1):
+    def forward(self, x, edge_index, edge_attr, batch):
         """
         参数:
         - x: 节点特征，形状 [num_nodes, num_node_features]
@@ -210,23 +210,7 @@ class MyGIN(nn.Module):
             node_embeds.append(self.node_embeddings[i](feat_i_one_hot))
         h = torch.stack(node_embeds, dim=0).sum(0)
 
-        # =================================================================
-        # 🚀 【核心创新】：在连续特征空间 (Embedding Space) 注入受控扰动
-        # =================================================================
-        if aug_type == 'noise':
-            # 策略 A：高斯噪声扰动。aug_ratio 作为标准差 (std)
-            # torch.randn_like 生成均值为 0，方差为 1 的标准正态分布噪声
-            noise = torch.randn_like(h) * aug_ratio
-            h = h + noise
-            
-        elif aug_type == 'mask':
-            # 策略 B：原子特征随机遮蔽 (Node Feature Masking)
-            # aug_ratio 作为丢弃概率 (如 0.1 代表 10% 的原子特征被置 0)
-            # 生成 [总节点数, 1] 的掩码，确保同一个原子的所有 128 维特征同时被置 0
-            drop_mask = (torch.rand(h.size(0), 1, device=h.device) > aug_ratio).float()
-            # 缩放特征以保持数学期望不变 (类似于标准 Dropout 的做法)
-            h = h * drop_mask / (1.0 - aug_ratio)
-        # =================================================================
+        
 
         # 2. 穿过每一层 GIN，并保存中间结果用于 JK
         all_layer_node_feats = [h]
@@ -260,4 +244,4 @@ class MyGIN(nn.Module):
             # 如果确有需要，可以引入 PyG 的 Set2Set 模块。
             raise ValueError(f"Readout '{self.readout_type}' is not fully supported in this simplified PyG version. Use 'mean' or 'sum'.")
 
-        return graph_feats
+        return  final_node_feats, graph_feats

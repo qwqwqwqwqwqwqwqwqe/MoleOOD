@@ -37,7 +37,7 @@ class Framework(torch.nn.Module):
     def __init__(self, base_dim, sub_dim, num_class, dropout=0.5):
         super(Framework, self).__init__()
         self.base_model = MyGIN(
-              num_node_emb_list=[39], 
+              num_node_emb_list=[40], 
               num_edge_emb_list=[10], 
               num_layers=4,           
               emb_dim=base_dim, 
@@ -47,7 +47,7 @@ class Framework(torch.nn.Module):
           )
           
         self.sub_model = MyGIN(
-            num_node_emb_list=[39], 
+            num_node_emb_list=[40], 
             num_edge_emb_list=[10], 
             num_layers=4, 
             emb_dim=sub_dim, 
@@ -60,11 +60,21 @@ class Framework(torch.nn.Module):
 
         self.predictor = MLP([sub_dim, sub_dim, num_class], dropout=dropout, norm=None)
 
-    def forward(self, data, aug_type=None, aug_ratio=0.1):
-        # --- 1. 处理主图 ---
-        main_feat = self.base_model(data.x, data.edge_index, data.edge_attr, data.batch, aug_type, aug_ratio) # [num_total_nodes, base_dim]
-       
+        # 2. 🚨 新增：辅助任务预测头 (Auxiliary Branch)
+        # 输入是节点级别的特征 (base_dim)，输出是预测 40 种原子类型
+        self.aux_predictor = MLP([base_dim, base_dim, 40], dropout=dropout, norm=None)
 
+    def forward(self, data, return_node_feats=False):
+        # --- 1. 处理主图 ---
+        # 【修改】：要求 base_model 同时返回节点级特征 (用于辅助任务) 和 图级特征 (用于主任务)
+        # 你需要微调一下 MyGIN 的 forward，让它 return node_feats, graph_feats
+        node_feats, main_feat = self.base_model(data.x, data.edge_index, data.edge_attr, data.batch) # [num_total_nodes, base_dim]
+       
+        aux_logits = None
+        if return_node_feats:
+            # 用辅助头对所有节点进行原子类型预测
+            aux_logits = self.aux_predictor(node_feats)
+            return aux_logits
         # --- 2. 处理子结构 ---
         # data.subs 是一个 List of Lists
         sub_batch = pyg_batch_from_subgraphs(data.subs) # 拼接成一个大的 Batch 对象
@@ -75,9 +85,9 @@ class Framework(torch.nn.Module):
 
         sub_batch = sub_batch.to(data.x.device)
         
-        subs_feat = self.sub_model(
+        _,subs_feat = self.sub_model(
             sub_batch.x, sub_batch.edge_index, sub_batch.edge_attr, sub_batch.batch, 
-            aug_type, aug_ratio
+            
         )
         
         
@@ -136,7 +146,7 @@ class ConditionalGnn(torch.nn.Module):
 
     def forward(self, data, domains):
         domain_feat = self.class_emb(domains)
-        graph_feat = self.backend(data.x, data.edge_index, data.edge_attr, data.batch)
+        _,graph_feat = self.backend(data.x, data.edge_index, data.edge_attr, data.batch)
       
         
         combined_feat = torch.cat([graph_feat, domain_feat], dim=1)
@@ -162,7 +172,7 @@ class DomainClassifier(torch.nn.Module):
         self.predictor = MLP([backend_dim + num_task, backend_dim, num_domain], norm=None)
 
     def forward(self, data):
-        graph_feat = self.backend(data.x, data.edge_index, data.edge_attr, data.batch)
+        _,graph_feat = self.backend(data.x, data.edge_index, data.edge_attr, data.batch)
        
         
         y_part = data.y.view(-1, self.num_task).float()

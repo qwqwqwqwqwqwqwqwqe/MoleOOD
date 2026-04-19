@@ -5,6 +5,7 @@ import torch.nn as nn
 from copy import deepcopy
 from tqdm import tqdm # 用于进度条
 import torch.nn.functional as F # 用于熵计算可能用到的 F.softmax 等
+from models.utils import mask_node_features # 确保导入了节点掩码函数
 # ==========================================================
 # TENT 核心函数
 # ==========================================================
@@ -580,3 +581,4 @@ def eval_with_masked_cotta(
     if evaluate_fn:
         return evaluate_fn(pred=result_all, gt=gt_all, metric=['auc', 'accuracy'])
     return result_all, gt_all
+
