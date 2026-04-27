@@ -4,13 +4,24 @@ import argparse
 from tqdm import tqdm
 import torch.nn.functional as F
 from copy import deepcopy
-
+import torch.nn as nn
+import random
 # 导入你的核心组件 (请确保路径正确)
 from torch_geometric.loader import DataLoader
 from models.dataset import LBAPDatasetWithSub
 from models.Framework import Framework
+import numpy as np
 from models.utils import evaluate, mask_node_features
-
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed) # 如果用多卡
+    # 🚨 极其关键：强制让 GPU 算法变得确定（虽然会慢一点）
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 def init_args():
     parser = argparse.ArgumentParser('Drug-TTA (Meta-Auxiliary) Evaluation Script')
     
@@ -33,6 +44,7 @@ def init_args():
     parser.add_argument('--tta_steps', default=1, type=int, help="每个 Batch 适应的步数")
     parser.add_argument('--mask_rate', default=0.15, type=float, help="辅助任务的节点掩码比例")
     
+    parser.add_argument('--seed', default=2022, type=int, help="随机种子，确保实验可重复")
     return parser.parse_args()
 
 @torch.no_grad()
@@ -127,6 +139,7 @@ def eval_with_zero_shot_meta_aux(
     model: torch.nn.Module, 
     loader: torch.utils.data.DataLoader, 
     device: torch.device,
+    
     tta_lr: float = 0.01,   # 沿用你跑出大提升的猛药
     tta_steps: int = 3,     # 沿用你的成功经验
     mask_rate: float = 0.4
@@ -140,7 +153,7 @@ def eval_with_zero_shot_meta_aux(
     # 因为原始的 best_model.pth 里没有这个头，我们在这里当场造一个。
     # 假设 base_dim 是 128，原子种类是 40
     # =================================================================
-    base_dim = model_for_tta.base_model.node_embeddings[0].out_features
+    base_dim=128
     # 我们用一个极简的单层 Linear，防止它过度拟合，只提供最基础的梯度方向
     aux_head = nn.Linear(base_dim, 40).to(device) 
     
@@ -211,7 +224,9 @@ def eval_with_zero_shot_meta_aux(
     
     return evaluate(pred=result_all, gt=gt_all, metric=['auc', 'accuracy'])
 if __name__ == '__main__':
+    
     args = init_args()
+    seed_everything(args.seed)
     print("--- 启动 Drug-TTA 独立评估脚本 ---")
     print(args)
 
@@ -226,14 +241,46 @@ if __name__ == '__main__':
         dropout=args.framework_dropout
     ).to(device)
 
-    # 2. 灵魂附体 (加载权重)
+     # =====================================================================
+    # 2. 灵魂附体与完美缝合 (加载 0.6691 的旧权重)
+    # =====================================================================
     print(f"\n[INFO] Loading pre-trained weights from: {args.model_path}")
     if not os.path.exists(args.model_path):
-        raise FileNotFoundError(f"找不到模型文件: {args.model_path}")
+        raise FileNotFoundError(f"Model file not found: {args.model_path}")
         
     checkpoint = torch.load(args.model_path, map_location=device)
-    main_model.load_state_dict(checkpoint['main'])
-    print("✅ 权重加载成功！")
+    pretrained_dict = checkpoint['main']
+    model_dict = main_model.state_dict()
+    
+    # --- A. 过滤掉新模型里有，但旧模型里没有的层 (比如 aux_predictor) ---
+    filtered_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    
+    # --- B. 缝合尺寸不匹配的层 (处理 39 -> 40 的 Embedding 扩充) ---
+    import math # 确保导入了 math
+    for k, v in filtered_dict.items():
+        if v.shape != model_dict[k].shape:
+            print(f"[Surgery] 正在缝合尺寸不匹配的层: {k} (旧: {v.shape} -> 新: {model_dict[k].shape})")
+            # 处理 nn.Linear(39, 128) 扩展为 nn.Linear(40, 128) 的权重矩阵
+            # 权重矩阵形状为 [out_features, in_features]
+            if len(v.shape) == 2 and v.shape[0] == model_dict[k].shape[0] and v.shape[1] < model_dict[k].shape[1]:
+                # 创建新壳，形状对齐新模型 [128, 40]
+                new_w = torch.empty_like(model_dict[k])
+                # Kaiming 随机初始化整个新壳 (给第 40 列合理的初始值)
+                torch.nn.init.kaiming_uniform_(new_w, a=math.sqrt(5))
+                # 极其关键：将旧模型的 39 列完美覆盖过去
+                new_w[:, :v.shape[1]] = v
+                filtered_dict[k] = new_w
+                print(f"  -> [成功] 旧权重已保留，新增的 MASK 维度已随机初始化。")
+            else:
+                print(f"  -> [警告] 无法自动缝合，保持新模型的随机初始化。")
+                filtered_dict[k] = model_dict[k]
+
+    # --- C. 执行最终的加载 ---
+    model_dict.update(filtered_dict)
+    # strict=False 允许 model_dict 中有没被更新的 key (如 aux_predictor)
+    main_model.load_state_dict(model_dict, strict=False)
+    print("✅ 权重加载与缝合成功！")
+
 
     # 3. 加载测试数据
     print(f"\n[INFO] Loading test data from: {args.test_path}")
@@ -241,7 +288,7 @@ if __name__ == '__main__':
     test_loader  = DataLoader(test_set, batch_size=args.batch_size, shuffle=False)
 
     # 4. 执行 Meta-Auxiliary TTA 评估
-    test_perf = eval_with_meta_auxiliary(
+    test_perf = eval_with_zero_shot_meta_aux(
         model=main_model, 
         loader=test_loader, 
         device=device,
