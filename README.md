@@ -9,6 +9,12 @@
 论文中是66.69+-0.34
 <img width="1007" height="381" alt="image" src="https://github.com/user-attachments/assets/1cc8c0be-a2c5-458a-8936-81a52d520193" />
 
+EC50-Assay
+<img width="1479" height="861" alt="image" src="https://github.com/user-attachments/assets/5cfca458-7bb3-42d8-9006-b10d030ef062" />
+
+EC50-Size
+<img width="1295" height="945" alt="image" src="https://github.com/user-attachments/assets/068177a4-5007-45a5-8d50-39fe5d03948d" />
+没在65.09+-0.9
 加了tent的结果
 <img width="1286" height="849" alt="image" src="https://github.com/user-attachments/assets/85cc9007-ddc3-4f92-bdf5-1cf867d9c3d9" />
 
