@@ -44,7 +44,13 @@ def init_args():
     parser.add_argument('--epoch_ast', default=20, type=int)
     parser.add_argument('--lambda_loss', default=1.0, type=float)
     parser.add_argument('--dist', default='uniform', type=str)
-    
+
+    parser.add_argument('--train_main_only', action='store_true', help='开启此开关则跳过辅助训练，直接加载模型进行断点训练')
+    parser.add_argument('--model_path', type=str, default=None, help='预训练模型的路径')
+    parser.add_argument(
+        '--resume_path', type=str, default=None, 
+        help='断点续训的模型路径 (例如: log/xxx/main_model_latest.pth)'
+    )
     return parser.parse_args()
 
 
@@ -134,62 +140,109 @@ if __name__ == '__main__':
     dev_loss = DeviationLoss(activation='abs', reduction='mean')
     prior = get_prior(args.num_domain, args.dist).to(device)
 
+    # =====================================================================
+    start_epoch = 0 # 默认从第 0 轮开始
+    
+    if args.resume_path and os.path.exists(args.resume_path):
+        print(f"\n[🚀 RESUME] 正在从断点恢复训练: {args.resume_path}")
+        checkpoint = torch.load(args.resume_path, map_location=device)
+        
+        # 1. 恢复三个模型的参数
+        main_model.load_state_dict(checkpoint['main'])
+        domain_classifier.load_state_dict(checkpoint['dom'])
+        conditional_gnn.load_state_dict(checkpoint['con'])
+        
+        # 2. 恢复优化器的状态（极其关键！保留了动量等历史信息）
+        if 'optimizer_main' in checkpoint:
+            optimizer_main.load_state_dict(checkpoint['optimizer_main'])
+        if 'optimizer_dom' in checkpoint:
+            optimizer_dom.load_state_dict(checkpoint['optimizer_dom'])
+        if 'optimizer_con' in checkpoint:
+            optimizer_con.load_state_dict(checkpoint['optimizer_con'])
+            
+        # 3. 恢复时间点 (加 1 是因为保存的是刚跑完的那一轮)
+        if 'epoch' in checkpoint:
+            start_epoch = checkpoint['epoch'] + 1
+        best_para = {
+                  'con': deepcopy(conditional_gnn.state_dict()),
+                  'dom': deepcopy(domain_classifier.state_dict())
+              }
+        print(f"[🚀 RESUME] 恢复成功！将从第 {start_epoch} 轮继续训练。\n")
+    # =====================================================================
+
+    
+
     # ==========================================
     # 4. 阶段一：训练辅助模型 (推断环境)
     # ==========================================
-    loss_curv, min_loss, best_ep, best_para = [], None, None, {}
+    if not args.train_main_only:
+      loss_curv, min_loss, best_ep, best_para = [], None, None, {}
+      
+      for ep in range(args.epoch_ast):
+          print(f'\n[INFO] Training Assistant Models - Epoch {ep}')
+          conditional_gnn.train()
+          domain_classifier.train()
+          Eqs, ELs = [], []
+          
+          for data in tqdm(train_loader):
+              data = data.to(device) # PyG 自动把图、标签等全搬到 GPU
+              batch_size = data.y.size(0)
+              
+              # 推断环境分布 q_e
+              q_e = torch.softmax(domain_classifier(data), dim=-1)
+              losses = []
+              
+              for dom in range(args.num_domain):
+                  domain_info = torch.ones(batch_size, dtype=torch.long, device=device) * dom
+                  # 假想敌预测
+                  p_ye = conditional_gnn(data, domain_info)
+                  # 【关键修改】data.y 是标签
+                  loss = cross_entropy(p_ye, data.y.view(-1), reduction='none')
+                  losses.append(loss)
+                  
+              losses = torch.stack(losses, dim=1)
+              Eq = torch.mean(torch.sum(q_e * losses, dim=-1))
+              ELBO = Eq + KLDist(q_e, prior)
+
+              optimizer_con.zero_grad()
+              optimizer_dom.zero_grad()
+              ELBO.backward()
+              optimizer_con.step()
+              optimizer_dom.step()
+
+              Eqs.append(Eq.item())
+              ELs.append(ELBO.item())
+              
+          mean_ELBO = np.mean(ELs)
+          print(f'[INFO] Eq: {np.mean(Eqs):.4f}, ELBO: {mean_ELBO:.4f}')
+          loss_curv.append((np.mean(Eqs), mean_ELBO))
+          
+          if best_ep is None or mean_ELBO < min_loss:
+              min_loss, best_ep = mean_ELBO, ep
+              best_para = {
+                  'con': deepcopy(conditional_gnn.state_dict()),
+                  'dom': deepcopy(domain_classifier.state_dict())
+              }
+
+      print(f'[INFO] Using the best Assistant Model from Epoch {best_ep}')
+      domain_classifier.load_state_dict(best_para['dom'])
+      conditional_gnn.load_state_dict(best_para['con'])
+      domain_classifier.eval()
+      conditional_gnn.eval()
+
+      # ==========================================================
+      # 🚨 【新增 1】: 阶段一结束后，立刻保存最佳的辅助模型
+      # ==========================================================
+      ast_model_path = os.path.join(log_dir, 'assistant_models_best.pth')
+      torch.save({
+          'dom': best_para['dom'],
+          'con': best_para['con'],
+          'best_ep': best_ep
+      }, ast_model_path)
+      print(f"✅ [SAVE] 最佳辅助模型 (Epoch {best_ep}) 已安全存入: {ast_model_path}\n")
+    else:
+        print("\n[⏩ SKIP] 已开启 train_main_only，跳过阶段一训练。")
     
-    for ep in range(args.epoch_ast):
-        print(f'\n[INFO] Training Assistant Models - Epoch {ep}')
-        conditional_gnn.train()
-        domain_classifier.train()
-        Eqs, ELs = [], []
-        
-        for data in tqdm(train_loader):
-            data = data.to(device) # PyG 自动把图、标签等全搬到 GPU
-            batch_size = data.y.size(0)
-            
-            # 推断环境分布 q_e
-            q_e = torch.softmax(domain_classifier(data), dim=-1)
-            losses = []
-            
-            for dom in range(args.num_domain):
-                domain_info = torch.ones(batch_size, dtype=torch.long, device=device) * dom
-                # 假想敌预测
-                p_ye = conditional_gnn(data, domain_info)
-                # 【关键修改】data.y 是标签
-                loss = cross_entropy(p_ye, data.y.view(-1), reduction='none')
-                losses.append(loss)
-                
-            losses = torch.stack(losses, dim=1)
-            Eq = torch.mean(torch.sum(q_e * losses, dim=-1))
-            ELBO = Eq + KLDist(q_e, prior)
-
-            optimizer_con.zero_grad()
-            optimizer_dom.zero_grad()
-            ELBO.backward()
-            optimizer_con.step()
-            optimizer_dom.step()
-
-            Eqs.append(Eq.item())
-            ELs.append(ELBO.item())
-            
-        mean_ELBO = np.mean(ELs)
-        print(f'[INFO] Eq: {np.mean(Eqs):.4f}, ELBO: {mean_ELBO:.4f}')
-        loss_curv.append((np.mean(Eqs), mean_ELBO))
-        
-        if best_ep is None or mean_ELBO < min_loss:
-            min_loss, best_ep = mean_ELBO, ep
-            best_para = {
-                'con': deepcopy(conditional_gnn.state_dict()),
-                'dom': deepcopy(domain_classifier.state_dict())
-            }
-
-    print(f'[INFO] Using the best Assistant Model from Epoch {best_ep}')
-    domain_classifier.load_state_dict(best_para['dom'])
-    conditional_gnn.load_state_dict(best_para['con'])
-    domain_classifier.eval()
-    conditional_gnn.eval()
 
     # ==========================================
     # 5. 阶段二：训练主模型 (学习不变性)
@@ -197,7 +250,7 @@ if __name__ == '__main__':
     valid_curv, test_curv, max_valid_auc = {}, {}, None
     model_path = os.path.join(log_dir, f'best_model.pth')
     
-    for ep in range(args.epoch_main):
+    for ep in range(start_epoch, args.epoch_main):
         print(f'\n[INFO] Training Main Model - Epoch {ep}')
         main_model.train()
         
@@ -238,6 +291,14 @@ if __name__ == '__main__':
         # ==========================================
         # 6. 评估与保存
         # ==========================================
+    # if args.test_only:
+    #   print("\n" + "="*50)
+    #   print("🔍 [TEST ONLY MODE] 正在进行最终测试...")
+    #   # 跑一遍测试集
+    #   test_perf = eval_one_epoch(main_model, test_loader, device)
+    #   print(f"🔥 Final Test Result: {test_perf}")
+    #   print("="*50)
+        
         val_perf = eval_one_epoch(main_model, valid_loader, device)
         test_perf = eval_one_epoch(main_model, test_loader, device)
         
@@ -249,6 +310,22 @@ if __name__ == '__main__':
 
         print(f'[INFO] Valid: {val_perf}')
         print(f'[INFO] Test : {test_perf}')
+
+        # ==========================================================
+        # 🚨 【新增 2】: 每轮都保存并覆盖当前的最新状态 (Latest Model)
+        # ==========================================================
+        latest_model_path = os.path.join(log_dir, 'main_model_latest.pth')
+        torch.save({
+            'main': main_model.state_dict(),
+            'dom': best_para['dom'],
+            'con': best_para['con'],
+            'epoch': ep, # 记录这是哪一轮
+             # --- 极其关键：保存优化器状态 ---
+            'optimizer_main': optimizer_main.state_dict(),
+            'optimizer_dom': optimizer_dom.state_dict(),
+            'optimizer_con': optimizer_con.state_dict()
+        }, latest_model_path)
+        print(f"🔄 [SAVE] 第 {ep} 轮最新状态已覆盖保存至: {latest_model_path}")
 
         if max_valid_auc is None or val_perf['auc'] > max_valid_auc:
             torch.save({

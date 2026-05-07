@@ -210,6 +210,8 @@ class MyGIN(nn.Module):
             node_embeds.append(self.node_embeddings[i](feat_i_one_hot))
         h = torch.stack(node_embeds, dim=0).sum(0)
 
+        
+
         # 2. 穿过每一层 GIN，并保存中间结果用于 JK
         all_layer_node_feats = [h]
         for layer in range(self.num_layers):
@@ -242,4 +244,4 @@ class MyGIN(nn.Module):
             # 如果确有需要，可以引入 PyG 的 Set2Set 模块。
             raise ValueError(f"Readout '{self.readout_type}' is not fully supported in this simplified PyG version. Use 'mean' or 'sum'.")
 
-        return graph_feats
+        return  final_node_feats, graph_feats

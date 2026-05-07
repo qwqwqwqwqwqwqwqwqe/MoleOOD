@@ -65,3 +65,29 @@ def evaluate(pred, gt, metric='auc'):
             total, correct = len(pred), torch.sum(pred.long() == gt.long())
             result[M] = (correct / total).item()
     return result
+
+
+
+def mask_node_features(data, mask_rate=0.15, mask_token_id=39):
+    """
+    辅助任务：随机掩码节点特征 (原子类型)。
+    mask_token_id: 一个特殊的 ID，代表这个节点被遮挡了（因为我们原本有 0-38 种原子，所以用 39 代表 MASK）
+    """
+    num_nodes = data.x.size(0)
+    # 随机选择 15% 的节点进行 MASK
+    mask_num = int(num_nodes * mask_rate)
+    
+    if mask_num == 0:
+        return data, None, None # 节点太少，不进行 MASK
+        
+    mask_idx = torch.randperm(num_nodes, device=data.x.device)[:mask_num]
+    
+    # 记录真实的原子标签，用于计算辅助任务 Loss
+    masked_node_labels = data.x[mask_idx].clone().view(-1)
+    
+    # 拷贝一份数据，防止污染原图
+    masked_data = data.clone()
+    # 将选中的节点特征替换为 MASK_TOKEN
+    masked_data.x[mask_idx] = mask_token_id
+    
+    return masked_data, mask_idx, masked_node_labels
