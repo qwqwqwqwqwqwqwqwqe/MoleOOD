@@ -216,3 +216,51 @@ Meta-Aux TTA Testing: 100% 20/20 [00:20<00:00,  1.02s/it]
 ```
 🔥 FINAL TTA AUC:      0.5989
 🎯 FINAL TTA Accuracy: 0.7134
+
+-----------------改成一致性正则化--------------
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_scaffold_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --test_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 5 \
+  --adapt_lr 0.01 \
+  --inner_steps 3 \
+  --aux_lr 0.01 \
+  --bn_lr 1e-4 \
+  --test_aux_lr 0.02 \
+  --mask_rate 0.1 \
+  --seed 2022 \
+  --device 0
+```
+<img width="1005" height="753" alt="image" src="https://github.com/user-attachments/assets/9395e3fa-dbaf-490c-badb-3934138eef8a" />
+
+
+mask_rate 0.2
+
+
+<img width="858" height="247" alt="image" src="https://github.com/user-attachments/assets/7b31de40-355d-437d-a048-e315b4ba3866" />
+aux_lr=1e-3
+<img width="862" height="229" alt="image" src="https://github.com/user-attachments/assets/61b75450-2e13-42f0-b14a-fa9199685a5e" />
+
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_scaffold_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --test_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 5 \
+  --adapt_lr 0.01 \
+  --inner_steps 5 \
+  --aux_lr 0.005 \
+  --bn_lr 1e-4 \
+  --mask_rate 0.2 \
+  --aux_weight 0.2 \
+  --seed 2022 \
+  --device 0
+```
+<img width="718" height="190" alt="image" src="https://github.com/user-attachments/assets/da8c4096-146f-4511-a481-f5f3a05e050a" />
+
+<img width="1394" height="774" alt="image" src="https://github.com/user-attachments/assets/ac91a2f4-421f-4f2e-b033-0b48d8ed60a2" />
+
