@@ -45,7 +45,7 @@ AUC
 0.6790 ┤                       ●(0.6790)
 0.6785 ┤
        ├─────┼─────┼─────┼─────┼─────┼─────
-      1e-4  2e-4   4e-4  6e-4  8e-4  1e-3
+      1e-4  2e-4   5e-4  6e-4  8e-4  1e-3
                         bn_lr
 ```
 
@@ -80,7 +80,7 @@ AUC
 0.660 ┤╱          ╱             ╱
 0.655 ┤          ╱             ╱
 0.650 ┼●(0.6500)╱             ╱
-      ├────┼────┼────┼────┼────┼────┼────
+      ├────┼────┼────┼────┼───┼────┼────
     0.005 0.007 0.010 0.012 0.015 0.017 0.020
                         adapt_lr
 ```
@@ -119,7 +119,7 @@ AUC
 | adapt_epochs | AUC | aux_loss (末轮) |
 |--------------|-----|-----------------|
 | 5 | 0.6916 | 0.5191 |
-| 7 | 0.6955 | — |
+| 7 | 0.6955 | 0.4690 |
 | **8** | **0.6994** | **0.4377** |
 | 9 | 0.6952 | 0.4146 |
 | 10 | 0.6928 | 0.4122 |
@@ -236,3 +236,40 @@ AUC
 2. `temperature=2.0` 和 `conf_threshold=0.6` 最值得试
 3. 如果 temperature 有效，联合 `num_mask_aug` 一起用
 
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_assay_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_assay_brics.json \
+  --test_path data/ec50/lbap_core_ec50_assay_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 8 \
+  --adapt_lr 0.015 \
+  --inner_steps 7 \
+  --aux_lr 0.005 \
+  --bn_lr 5e-4 \
+  --mask_rate 0.2 \
+  --aux_weight 1 \
+  --seed 2022 \
+  --device 0
+```
+![alt text](image-1.png)
+
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_size_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_size_brics.json \
+  --test_path data/ec50/lbap_core_ec50_size_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 8 \
+  --adapt_lr 0.015 \
+  --inner_steps 7 \
+  --aux_lr 0.005 \
+  --bn_lr 5e-4 \
+  --mask_rate 0.2 \
+  --aux_weight 1 \
+  --seed 2022 \
+  --device 0
+```
+![alt text](image-2.png)
+
+![alt text](image-3.png)
