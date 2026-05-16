@@ -264,3 +264,57 @@ aux_lr=1e-3
 
 <img width="1394" height="774" alt="image" src="https://github.com/user-attachments/assets/ac91a2f4-421f-4f2e-b033-0b48d8ed60a2" />
 
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_scaffold_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --test_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 5 \
+  --adapt_lr 0.01 \
+  --inner_steps 5 \
+  --aux_lr 0.005 \
+  --bn_lr 5e-4 \
+  --mask_rate 0.2 \
+  --aux_weight 1 \
+  --seed 2022 \
+  --device 0
+```
+<img width="746" height="528" alt="image" src="https://github.com/user-attachments/assets/5baff0b7-641a-4c7f-b44c-ec17da7cfc84" />
+
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_scaffold_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --test_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 5 \
+  --adapt_lr 0.015 \
+  --inner_steps 5 \
+  --aux_lr 0.005 \
+  --bn_lr 5e-4 \
+  --mask_rate 0.2 \
+  --aux_weight 1 \
+  --seed 2022 \
+  --device 0
+```
+<img width="770" height="536" alt="image" src="https://github.com/user-attachments/assets/3b608525-8da7-4b57-a5e6-033c42ff69f5" />
+
+```
+!python evaluate_drugtta.py \
+  --model_path log/lbap_core_ec50_scaffold_brics/PyG_GIN/best_model.pth \
+  --train_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --test_path data/ec50/lbap_core_ec50_scaffold_brics.json \
+  --batch_size 128 \
+  --adapt_epochs 8 \
+  --adapt_lr 0.015 \
+  --inner_steps 5 \
+  --aux_lr 0.005 \
+  --bn_lr 5e-4 \
+  --mask_rate 0.2 \
+  --aux_weight 1 \
+  --seed 2022 \
+  --device 0
+```
+<img width="776" height="693" alt="image" src="https://github.com/user-attachments/assets/fd20763c-b708-4ffa-978a-16edbe48ead2" />
+<img width="781" height="596" alt="image" src="https://github.com/user-attachments/assets/34e3c923-ab88-4eaa-b965-4026d1b8dd1f" />
