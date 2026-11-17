@@ -193,7 +193,7 @@ class MyGIN(nn.Module):
         # 3. 图池化层 (Readout) 设置
         self.readout_type = readout
 
-    def forward(self, x, edge_index, edge_attr, batch):
+    def forward(self, x, edge_index, edge_attr, batch, graph_prompt=None):
         """
         参数:
         - x: 节点特征，形状 [num_nodes, num_node_features]
@@ -209,6 +209,14 @@ class MyGIN(nn.Module):
             feat_i_one_hot = F.one_hot(feat_i, num_classes=self.num_node_emb_list[i]).float()
             node_embeds.append(self.node_embeddings[i](feat_i_one_hot))
         h = torch.stack(node_embeds, dim=0).sum(0)
+
+        if graph_prompt is not None:
+            if graph_prompt.ndim == 1 and graph_prompt.shape[0] == h.shape[1]:
+                h = h + graph_prompt
+            elif graph_prompt.ndim == 2 and graph_prompt.shape[1] == h.shape[1]:
+                h = h + graph_prompt[batch]
+            else:
+                raise ValueError('Prompt must have shape [hidden_dim] or [num_graphs, hidden_dim]')
 
         
 
